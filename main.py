@@ -1,61 +1,122 @@
 import tkinter as tk
-from tkinter import messagebox
-import csv
+from tkinter import messagebox, filedialog
+import json
 from datetime import datetime
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
+from docx import Document
+from docx.shared import Pt
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
-def generate_pdf(director, school, date, observations, ofice_number):
-    pdf_filename = f"Oficio_{ofice_number}.pdf"
-    c = canvas.Canvas(pdf_filename, pagesize=A4)
-    width, height = A4
+# Função para preencher o documento com os dados fornecidos
+def preencher_documento(campos):
+    caminho_modelo = "oficio_modelo_2.docx"
 
-    c.drawString(100, height - 100, f"Nome do Diretor(a): {director}")
-    c.drawString(100, height - 120, f"Nome da Escola: {school}")
-    c.drawString(100, height - 140, f"Data: {date}")
-    c.drawString(100, height - 160, f"Observações: {observations}")
-    
-    c.save()
-    messagebox.showinfo("PDF Gerado", f"Documento salvo como {pdf_filename}")
+    try:
+        doc = Document(caminho_modelo)
+    except FileNotFoundError:
+        messagebox.showerror("Erro", f"Arquivo {caminho_modelo} não encontrado.")
+        return
 
-def save_history(director, school, date, observations):
-    with open("historico_oficios.csv", mode="a", newline="") as file:
-        writer = csv.writer(file)
-        writer = writerow([director, school, date, observations, datetime.now().strftime("%d/%m/%Y, %H:%M:%S")])
+    # Substituir os campos delimitados por colchetes
+    for p in doc.paragraphs:
+        for key, value in campos.items():
+            if key in p.text:
+                p.text = p.text.replace(f"[{key}]", value)
+            for run in p.runs:
+                run.font.name = "Arial"
+                run.font.size = Pt(11)
 
-def export_ofice():
-    director = entry_director.get()
-    school = entry_school.get()
-    date = entry_date.get()
-    observations = entry_observations.get()
-    ofice_number = datetime.now().strftime("%Y%m%d%H%M%S")
+    # Salvar o documento preenchido
+    caminho_arquivo = filedialog.asksaveasfilename(
+        defaultextension=".docx",
+        filetypes=[("Documentos Word", "*.docx")],
+        initialfile="Documento_Preenchido.docx"
+    )
+    if not caminho_arquivo:
+        return
 
-    if director and school and date:
-        generate_pdf(director, school, date, observations, ofice_number)
-        save_history(director, school, date, observations)
-    else:
-        messagebox.showerror("Erro", "Por favor, preencha todos os campos obrigatórios.")
+    doc.save(caminho_arquivo)
+    salvar_historico(campos)
+    messagebox.showinfo("Documento Gerado", f"Ofício salvo em {caminho_arquivo}")
 
+
+# Função para salvar o histórico
+def salvar_historico(campos):
+    try:
+        with open("historico.json", "r") as file:
+            historico = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        historico = []
+
+    historico.append({**campos, "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+
+    with open("historico.json", "w") as file:
+        json.dump(historico, file, indent=4)
+
+
+# Função para exibir a tela de preenchimento de dados
+def emitir_documento():
+    def salvar_dados():
+        campos = {
+            "data": entry_data.get(),
+            "nome_diretor": entry_diretor.get(),
+            "escola": entry_escola.get(),
+            "nome_servidor": entry_servidor.get(),
+            "matricula": entry_matricula.get(),
+            "situacao_funcional": entry_situacao.get(),
+            "funcao": entry_funcao.get(),
+            "turnos": entry_turno.get(),
+            "termino_contrato": entry_termino.get(),
+            "observacoes": entry_observacoes.get()
+        }
+        if all([campos[key] for key in campos if key != "observacoes"]):
+            preencher_documento(campos)
+            limpar_campos()
+        else:
+            messagebox.showerror("Erro", "Por favor, preencha todos os campos obrigatórios, exceto Observações.")
+
+    def limpar_campos():
+        for entry in entries:
+            entry.delete(0, tk.END)
+
+    # Tela de preenchimento de dados
+    tela_preenchimento = tk.Toplevel(root)
+    tela_preenchimento.title("Preencher Dados")
+    tela_preenchimento.geometry("600x500")
+
+    labels = [
+        "Data", "Nome do Diretor(a)", "Escola", "Nome do Servidor(a)",
+        "Matrícula", "Situação Funcional", "Função", "Turnos",
+        "Término do Contrato", "Observações"
+    ]
+    entries = []
+
+    for i, label in enumerate(labels):
+        tk.Label(tela_preenchimento, text=label).grid(row=i, column=0, padx=5, pady=5)
+        entry = tk.Entry(tela_preenchimento, width=50)
+        entry.grid(row=i, column=1, padx=5, pady=5)
+        entries.append(entry)
+
+    (entry_data, entry_diretor, entry_escola, entry_servidor, entry_matricula,
+     entry_situacao, entry_funcao, entry_turno, entry_termino, entry_observacoes) = entries
+
+    btn_salvar = tk.Button(tela_preenchimento, text="Salvar e Gerar Documento", command=salvar_dados)
+    btn_salvar.grid(row=len(labels), column=0, columnspan=2, pady=10)
+
+
+# Função para exibir a tela de histórico (sem funcionalidade ainda)
+def exibir_historico():
+    messagebox.showinfo("Histórico", "Funcionalidade em desenvolvimento.")
+
+
+# Tela inicial com dois botões
 root = tk.Tk()
-root.title("Gerador de Oficios")
+root.title("Gerador de Ofícios")
+root.geometry("400x300")
 
-tk.Label(root, text="Nome do diretor(a)").grid(row=0, column=0)
-entry_director = tk.Entry(root, width=50)
-entry_director.grid(row=0, column=1)
+btn_historico = tk.Button(root, text="Histórico", command=exibir_historico, width=30, height=2)
+btn_historico.pack(pady=20)
 
-tk.Label(root, text="Nome da escola").grid(row=1, column=0)
-entry_school = tk.Entry(root, width=50)
-entry_school.grid(row=1, column=1)
-
-tk.Label(root, text="Data").grid(row=2, column=0)
-entry_date = tk.Entry(root, width=50)
-entry_date.grid(row=2, column=1)
-
-tk.Label(root, text="Observações").grid(row=3, column=0)
-entry_observations = tk.Entry(root, width=50)
-entry_observations.grid(row=3, column=1)
-
-export_ofice_button = tk.Button(root, text="Emitir Ofício", command=export_ofice)
-export_ofice_button.grid(row=4, column=0, columnspan=2, pady=10)
+btn_emitir = tk.Button(root, text="Emitir Documento", command=emitir_documento, width=30, height=2)
+btn_emitir.pack(pady=20)
 
 root.mainloop()
