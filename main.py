@@ -4,7 +4,6 @@ import json
 from datetime import datetime
 from docx import Document
 from docx.shared import Pt
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
 # Função para preencher o documento com os dados fornecidos
 def preencher_documento(campos):
@@ -21,9 +20,6 @@ def preencher_documento(campos):
         for key, value in campos.items():
             if key in p.text:
                 p.text = p.text.replace(f"[{key}]", value)
-            for run in p.runs:
-                run.font.name = "Arial"
-                run.font.size = Pt(11)
 
     # Salvar o documento preenchido
     caminho_arquivo = filedialog.asksaveasfilename(
